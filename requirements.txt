@@ -1,0 +1,12 @@
+pandas
+numpy
+matplotlib
+plotly
+openpyxl
+xlsxwriter
+sqlalchemy
+pyyaml
+requests
+scipy
+pytest 
+yfinance
