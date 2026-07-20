@@ -1,0 +1,28 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Pytest
+.pytest_cache/
+
+# VS Code
+.vscode/
+
+# Generated reports
+reports/radar_charts/
+reports/peer_reports/
+
+# Output files
+output/
+
+# OS files
+.DS_Store
+Thumbs.db
