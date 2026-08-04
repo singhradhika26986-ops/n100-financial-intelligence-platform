@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import plotly.express as px
 
 from utils.db import (
@@ -9,7 +10,7 @@ from utils.db import (
 
 def show():
 
-    st.title("📈 Trend Analysis")
+    st.title("Trend Analysis")
 
     companies = get_companies()
 
@@ -34,6 +35,10 @@ def show():
         st.warning("No financial ratio data available.")
         return
 
+    ratios = ratios.copy()
+    ratios["report_date"] = pd.to_datetime(ratios["report_date"], errors="coerce")
+    ratios = ratios.dropna(subset=["report_date"])
+
     metric_columns = [
         "ROE",
         "ROCE",
@@ -44,23 +49,39 @@ def show():
         "Revenue CAGR",
         "PAT CAGR",
         "Free Cash Flow",
+        "OCF Margin",
+        "Cash Conversion Ratio",
+        "Dividend Payout",
+        "Retention Ratio",
+        "Reinvestment Ratio",
     ]
 
     available_metrics = [
-        column
-        for column in metric_columns
-        if column in ratios.columns
+        column for column in metric_columns if column in ratios.columns
     ]
+
+    if not available_metrics:
+        st.warning("No trend metrics available.")
+        return
 
     selected_metric = st.selectbox(
         "Select Financial Metric",
         available_metrics,
     )
 
-    trend_data = ratios.sort_values("years")
+    trend_data = (
+    ratios
+    .sort_values("report_date")
+    .dropna(subset=[selected_metric])
+    )
+
+    if trend_data.empty:
+        st.warning("No data available for the selected metric.")
+        return
+
     fig = px.line(
         trend_data,
-        x="years",
+        x="report_date",
         y=selected_metric,
         markers=True,
         title=f"{selected_metric} Trend",
@@ -68,7 +89,7 @@ def show():
 
     fig.update_layout(
         template="plotly_white",
-        xaxis_title="Financial Year",
+        xaxis_title="Report Date",
         yaxis_title=selected_metric,
         height=500,
     )
@@ -83,7 +104,7 @@ def show():
     st.subheader("Trend Data")
 
     display_columns = [
-        "years",
+        "report_date",
         "ROE",
         "ROCE",
         "NPM",
@@ -126,21 +147,12 @@ def show():
     else:
 
         with col1:
-            st.metric(
-                "Latest",
-                f"{values.iloc[-1]:.2f}",
-            )
+            st.metric("Latest", f"{values.iloc[-1]:.2f}")
 
         with col2:
-            st.metric(
-                "Highest",
-                f"{values.max():.2f}",
-            )
+            st.metric("Highest", f"{values.max():.2f}")
 
         with col3:
-            st.metric(
-                "Lowest",
-                f"{values.min():.2f}",
-            )
+            st.metric("Lowest", f"{values.min():.2f}")
 
     st.divider()

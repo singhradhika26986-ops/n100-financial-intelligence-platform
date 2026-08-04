@@ -49,6 +49,7 @@ def test_connection():
     except Exception:
         return False
 
+
 def get_companies():
     """
     Return all companies.
@@ -136,7 +137,7 @@ def get_financial_ratios(symbol):
     SELECT *
     FROM financial_ratios
     WHERE symbol = ?
-    ORDER BY years DESC
+    ORDER BY report_date ASC
     """
 
     return execute_query(query, (symbol,))
@@ -154,6 +155,7 @@ def get_balance_sheet(symbol):
     """
 
     return execute_query(query, (symbol,))
+
 
 def get_income_statement(symbol):
     """
@@ -207,6 +209,7 @@ def get_peer_data(industry):
     Return peer companies from the same industry.
     """
     return get_sector_data(industry)
+
 
 def get_stock_prices(symbol):
     """
@@ -264,6 +267,7 @@ def get_dashboard_summary():
 
     return execute_query(query)
 
+
 def get_sector_summary():
     """
     Company count by industry.
@@ -283,7 +287,6 @@ def get_sector_summary():
 def get_top_companies(limit=5):
     """
     Return top companies alphabetically.
-    (Temporary until quality score is available.)
     """
     query = f"""
     SELECT
@@ -311,13 +314,19 @@ def get_home_kpis():
 
     return execute_query(query)
 
+
 def test_financial_ratios():
+    """
+    Test financial ratios table.
+    """
     query = """
     SELECT *
     FROM financial_ratios
     LIMIT 5
     """
+
     return execute_query(query)
+
 
 def get_screener_data():
     """

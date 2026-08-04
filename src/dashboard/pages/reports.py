@@ -1,8 +1,8 @@
 import streamlit as st
 
 from utils.db import (
-        get_companies,
-    get_company_profile,
+    get_companies,
+    get_financial_ratios,
     get_balance_sheet,
     get_income_statement,
     get_cash_flow,
@@ -11,7 +11,7 @@ from utils.db import (
 
 def show():
 
-    st.title("Financial Reports")
+    st.title("📑 Financial Reports")
 
     companies = get_companies()
 
@@ -19,19 +19,18 @@ def show():
         st.warning("No company data available.")
         return
 
-    company_name = st.selectbox(
+    company_options = (
+        companies["company_name"] + " (" + companies["symbol"] + ")"
+    ).tolist()
+
+    selected = st.selectbox(
         "Select Company",
-        companies["company_name"]
+        company_options,
     )
 
-    company = companies[
-        companies["company_name"] == company_name
-    ].iloc[0]
+    symbol = selected.split("(")[-1].replace(")", "").strip()
 
-    company_id = company["company_id"]
-    symbol = company["symbol"]
-
-    profile = get_company_profile(company_id)
+    ratios = get_financial_ratios(symbol)
     balance_sheet = get_balance_sheet(symbol)
     income_statement = get_income_statement(symbol)
     cash_flow = get_cash_flow(symbol)
@@ -45,19 +44,29 @@ def show():
         ]
     )
 
+    # ---------------------------------
+    # Financial Ratios
+    # ---------------------------------
+
     with tab1:
-        if profile.empty:
-            st.info("Financial ratio data is not available.")
+
+        if ratios.empty:
+            st.info("Financial ratio data not available.")
         else:
             st.dataframe(
-                profile,
+                ratios,
                 use_container_width=True,
                 hide_index=True,
             )
 
+    # ---------------------------------
+    # Balance Sheet
+    # ---------------------------------
+
     with tab2:
+
         if balance_sheet.empty:
-            st.info("Balance sheet data is not available.")
+            st.info("Balance Sheet data not available.")
         else:
             st.dataframe(
                 balance_sheet,
@@ -65,9 +74,14 @@ def show():
                 hide_index=True,
             )
 
+    # ---------------------------------
+    # Income Statement
+    # ---------------------------------
+
     with tab3:
+
         if income_statement.empty:
-            st.info("Income statement data is not available.")
+            st.info("Income Statement data not available.")
         else:
             st.dataframe(
                 income_statement,
@@ -75,9 +89,14 @@ def show():
                 hide_index=True,
             )
 
+    # ---------------------------------
+    # Cash Flow
+    # ---------------------------------
+
     with tab4:
+
         if cash_flow.empty:
-            st.info("Cash flow data is not available.")
+            st.info("Cash Flow data not available.")
         else:
             st.dataframe(
                 cash_flow,
@@ -85,7 +104,11 @@ def show():
                 hide_index=True,
             )
 
-            st.divider()
+    st.divider()
+
+    # ---------------------------------
+    # Summary Metrics
+    # ---------------------------------
 
     st.subheader("Report Summary")
 
@@ -94,33 +117,53 @@ def show():
     with col1:
         st.metric(
             "Financial Ratios",
-            len(profile)
+            len(ratios),
         )
 
     with col2:
         st.metric(
             "Balance Sheet",
-            len(balance_sheet)
+            len(balance_sheet),
         )
 
     with col3:
         st.metric(
             "Income Statement",
-            len(income_statement)
+            len(income_statement),
         )
 
     with col4:
         st.metric(
             "Cash Flow",
-            len(cash_flow)
+            len(cash_flow),
         )
 
     st.divider()
 
+    # ---------------------------------
+    # Download Reports
+    # ---------------------------------
+
+    if not ratios.empty:
+
+        csv = ratios.to_csv(
+            index=False
+        ).encode("utf-8")
+
+        st.download_button(
+            "📥 Download Financial Ratios",
+            data=csv,
+            file_name=f"{symbol}_financial_ratios.csv",
+            mime="text/csv",
+        )
+
+    # ---------------------------------
+    # JSON Summary
+    # ---------------------------------
+
     summary = {
-        "Company": company_name,
-        "Symbol": symbol,
-        "Financial Ratio Records": len(profile),
+        "Company Symbol": symbol,
+        "Financial Ratio Records": len(ratios),
         "Balance Sheet Records": len(balance_sheet),
         "Income Statement Records": len(income_statement),
         "Cash Flow Records": len(cash_flow),
