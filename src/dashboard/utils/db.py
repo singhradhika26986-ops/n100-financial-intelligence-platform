@@ -319,34 +319,10 @@ def test_financial_ratios():
     """
     return execute_query(query)
 
-    def get_screener_data():
-        """
-        Return data for stock screener.
-        """
-        query = """
-        SELECT
-            c.company_name,
-            c.symbol,
-            c.industry,
-
-            f.ROE,
-            f.ROCE,
-            f.NPM,
-            f.OPM,
-            f."D/E" AS debt_equity,
-            f.ICR,
-            f."Revenue CAGR" AS revenue_cagr,
-            f."PAT CAGR" AS pat_cagr,
-            f."Free Cash Flow" AS free_cash_flow
-
-    FROM companies c
-    JOIN financial_ratios f
-        ON c.symbol = f.symbol
-    """
-
-    return execute_query(query)
-
 def get_screener_data():
+    """
+    Return data for stock screener.
+    """
     query = """
     SELECT
         c.company_name,
@@ -365,4 +341,5 @@ def get_screener_data():
     JOIN financial_ratios f
         ON c.symbol = f.symbol
     """
+
     return execute_query(query)
