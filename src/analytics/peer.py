@@ -1,62 +1,169 @@
-import pandas as pd
-import numpy as np
 import logging
+
+import numpy as np
+import pandas as pd
+
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s"
+    format="%(asctime)s | %(levelname)s | %(message)s",
 )
 
 
 class PeerRankingEngine:
-
     """
     Peer Ranking Engine
-    Sprint 3 - Day 18
+
+    Features:
+    - Column normalization
+    - Latest record selection
+    - Percentile ranking
+    - Composite peer score
+    - Sector ranking
+    - Overall ranking
+    - Peer rating
+    - SQLite export
     """
 
     def __init__(self, dataframe):
-
         self.df = dataframe.copy()
+        self.available_metrics = []
 
         logging.info("Peer Ranking Engine Started")
 
-    # ==========================================
-    # Percentile Ranking
-    # ==========================================
+    # =====================================================
+    # COLUMN NORMALIZATION
+    # =====================================================
 
-    def percentile_rank(self, column, ascending=False):
+    def normalize_columns(self):
+        """
+        Normalize screener/database column names into
+        standard names used by the peer engine.
+        """
 
-        if column not in self.df.columns:
+        column_mapping = {
+            "debt_equity": "D/E",
+            "revenue_cagr": "Revenue CAGR",
+            "pat_cagr": "PAT CAGR",
+            "free_cash_flow": "Free Cash Flow",
+            "cash_conversion_ratio": "Cash Conversion Ratio",
+        }
 
-            logging.warning(f"{column} not found")
+        for source_column, target_column in column_mapping.items():
 
-            return
+            if (
+                source_column in self.df.columns
+                and target_column not in self.df.columns
+            ):
+                self.df[target_column] = self.df[
+                    source_column
+                ]
 
-        self.df[column + " Percentile"] = (
+        # Industry is the project's sector field.
+        if "Sector" not in self.df.columns:
 
-            self.df[column]
+            if "industry" in self.df.columns:
+                self.df["Sector"] = self.df["industry"]
 
-            .rank(
+            else:
+                self.df["Sector"] = "Unknown"
 
-                pct=True,
-
-                ascending=ascending
-
-            )
-
-            * 100
-
+        logging.info(
+            "Column normalization completed"
         )
 
-    # ==========================================
-    # Ranking Columns
-    # ==========================================
+    # =====================================================
+    # LATEST RECORD PER COMPANY
+    # =====================================================
+
+    def keep_latest_company_records(self):
+        """
+        Keep only the latest financial record for each
+        company symbol.
+        """
+
+        if "symbol" not in self.df.columns:
+            return
+
+        if "report_date" in self.df.columns:
+
+            self.df["report_date"] = pd.to_datetime(
+                self.df["report_date"],
+                errors="coerce",
+            )
+
+            self.df = (
+                self.df
+                .sort_values("report_date")
+                .drop_duplicates(
+                    subset=["symbol"],
+                    keep="last",
+                )
+                .reset_index(drop=True)
+            )
+
+        else:
+
+            self.df = (
+                self.df
+                .drop_duplicates(
+                    subset=["symbol"],
+                    keep="last",
+                )
+                .reset_index(drop=True)
+            )
+
+        logging.info(
+            "Latest company records selected: %s",
+            len(self.df),
+        )
+
+    # =====================================================
+    # PERCENTILE RANK
+    # =====================================================
+
+    def percentile_rank(
+        self,
+        column,
+        ascending=False,
+    ):
+        """
+        Calculate percentile ranking for a metric.
+        """
+
+        if column not in self.df.columns:
+            return False
+
+        values = pd.to_numeric(
+            self.df[column],
+            errors="coerce",
+        )
+
+        self.df[
+            column + " Percentile"
+        ] = (
+            values
+            .rank(
+                pct=True,
+                ascending=ascending,
+                na_option="keep",
+            )
+            * 100
+        )
+
+        return True
+
+    # =====================================================
+    # CALCULATE ALL PERCENTILES
+    # =====================================================
 
     def calculate_percentiles(self):
+        """
+        Calculate percentile scores for all supported
+        peer metrics.
+        """
 
-        metrics = [
-
+        normal_metrics = [
             "ROE",
             "ROCE",
             "NPM",
@@ -64,193 +171,223 @@ class PeerRankingEngine:
             "PAT CAGR",
             "Free Cash Flow",
             "Cash Conversion Ratio",
-            "ICR"
-
+            "ICR",
         ]
 
         reverse_metrics = [
-
-            "D/E"
-
+            "D/E",
         ]
 
-        for metric in metrics:
+        self.available_metrics = []
 
-            self.percentile_rank(metric)
+        for metric in normal_metrics:
+
+            if self.percentile_rank(metric):
+                self.available_metrics.append(metric)
 
         for metric in reverse_metrics:
 
-            self.percentile_rank(
+            if self.percentile_rank(
                 metric,
-                ascending=True
-            )
+                ascending=True,
+            ):
+                self.available_metrics.append(metric)
 
-        logging.info("Percentile Ranking Completed")
-
-            # ==========================================
-    # Composite Peer Score
-    # ==========================================
-
-    def calculate_peer_score(self):
-
-        percentile_columns = [
-
-            "ROE Percentile",
-            "ROCE Percentile",
-            "NPM Percentile",
-            "Revenue CAGR Percentile",
-            "PAT CAGR Percentile",
-            "Free Cash Flow Percentile",
-            "Cash Conversion Ratio Percentile",
-            "ICR Percentile",
-            "D/E Percentile"
-
-        ]
-
-        available_columns = [
-
-            col for col in percentile_columns
-
-            if col in self.df.columns
-
-        ]
-
-        self.df["Peer Score"] = (
-
-            self.df[available_columns]
-
-            .mean(axis=1)
-
+        logging.info(
+            "Percentile Ranking Completed"
         )
 
-        logging.info("Peer Score Calculated")
+        logging.info(
+            "Metrics used: %s",
+            ", ".join(self.available_metrics),
+        )
 
-    # ==========================================
-    # Sector Ranking
-    # ==========================================
+    # =====================================================
+    # COMPOSITE PEER SCORE
+    # =====================================================
 
-    def sector_rank(self):
+    def calculate_peer_score(self):
+        """
+        Calculate the average percentile score.
+        """
 
-        if "Sector" not in self.df.columns:
+        percentile_columns = [
+            metric + " Percentile"
+            for metric in self.available_metrics
+        ]
+
+        if not percentile_columns:
+
+            self.df["Peer Score"] = np.nan
 
             logging.warning(
-                "Sector column not found"
+                "No peer metrics available"
             )
 
             return
 
-        self.df["Sector Rank"] = (
-
-            self.df.groupby("Sector")["Peer Score"]
-
-            .rank(
-
-                ascending=False,
-
-                method="dense"
-
+        self.df["Peer Score"] = (
+            self.df[percentile_columns]
+            .mean(
+                axis=1,
+                skipna=True,
             )
-
+            .round(2)
         )
 
-        logging.info("Sector Ranking Completed")
+        logging.info(
+            "Peer Score Calculated"
+        )
 
-    # ==========================================
-    # Overall Ranking
-    # ==========================================
+    # =====================================================
+    # SECTOR RANKING
+    # =====================================================
+
+    def sector_rank(self):
+        """
+        Rank companies within their industry/sector.
+        """
+
+        if "Sector" not in self.df.columns:
+            self.df["Sector"] = "Unknown"
+
+        self.df["Sector"] = (
+            self.df["Sector"]
+            .fillna("Unknown")
+            .astype(str)
+        )
+
+        self.df["Sector Rank"] = (
+            self.df
+            .groupby("Sector")["Peer Score"]
+            .rank(
+                ascending=False,
+                method="dense",
+            )
+        )
+
+        logging.info(
+            "Sector Ranking Completed"
+        )
+
+    # =====================================================
+    # OVERALL RANKING
+    # =====================================================
 
     def overall_rank(self):
+        """
+        Rank all companies by Peer Score.
+        """
 
         self.df["Overall Rank"] = (
-
             self.df["Peer Score"]
-
             .rank(
-
                 ascending=False,
-
-                method="dense"
-
+                method="dense",
             )
-
         )
 
-        logging.info("Overall Ranking Completed")
+        logging.info(
+            "Overall Ranking Completed"
+        )
 
-    # ==========================================
-    # Rating Labels
-    # ==========================================
+    # =====================================================
+    # PEER RATING
+    # =====================================================
 
     def assign_rating(self):
+        """
+        Convert Peer Score into a 5-star rating.
+        """
 
         def rating(score):
+
+            if pd.isna(score):
+                return "N/A"
 
             if score >= 90:
                 return "★★★★★"
 
-            elif score >= 80:
+            if score >= 80:
                 return "★★★★☆"
 
-            elif score >= 70:
+            if score >= 70:
                 return "★★★☆☆"
 
-            elif score >= 60:
+            if score >= 60:
                 return "★★☆☆☆"
 
-            else:
-                return "★☆☆☆☆"
+            return "★☆☆☆☆"
 
         self.df["Peer Rating"] = (
-
             self.df["Peer Score"]
-
             .apply(rating)
-
         )
 
-        logging.info("Peer Ratings Assigned")
+        logging.info(
+            "Peer Ratings Assigned"
+        )
 
-            # ==========================================
-    # Export to SQLite
-    # ==========================================
+    # =====================================================
+    # SAVE TO SQLITE
+    # =====================================================
 
     def save_to_database(self, connection):
+        """
+        Save peer ranking results to SQLite.
+        """
 
         self.df.to_sql(
             "peer_ranking",
             connection,
             if_exists="replace",
-            index=False
+            index=False,
         )
 
-        logging.info("Peer Ranking Saved To SQLite")
+        logging.info(
+            "Peer Ranking Saved To SQLite"
+        )
 
-    # ==========================================
-    # Main Run
-    # ==========================================
+    # =====================================================
+    # MAIN PIPELINE
+    # =====================================================
 
     def run(self):
+        """
+        Execute complete peer ranking pipeline.
+        """
 
-        # Step 1 : Percentile Ranking
+        # Step 1
+        self.normalize_columns()
+
+        # Step 2
+        self.keep_latest_company_records()
+
+        # Step 3
         self.calculate_percentiles()
 
-        # Step 2 : Composite Peer Score
+        # Step 4
         self.calculate_peer_score()
 
-        # Step 3 : Sector Ranking
+        # Step 5
         self.sector_rank()
 
-        # Step 4 : Overall Ranking
+        # Step 6
         self.overall_rank()
 
-        # Step 5 : Rating
+        # Step 7
         self.assign_rating()
 
-        # Step 6 : Sort Results
-        self.df = self.df.sort_values(
-            by="Peer Score",
-            ascending=False
-        ).reset_index(drop=True)
+        # Step 8
+        self.df = (
+            self.df
+            .sort_values(
+                by="Peer Score",
+                ascending=False,
+                na_position="last",
+            )
+            .reset_index(drop=True)
+        )
 
         logging.info(
             "Peer Ranking Engine Completed Successfully"

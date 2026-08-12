@@ -19,6 +19,9 @@ env/
 # Generated reports
 reports/radar_charts/
 reports/peer_reports/
+reports/sectors/
+reports/tearsheets/
+reports/portfolio/
 
 # Output files
 output/
